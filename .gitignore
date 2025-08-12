@@ -1,0 +1,62 @@
+# Azure
+*.azurePubxml
+*.PublishSettings
+
+# Bicep build outputs
+*.json
+!bicepconfig.json
+!parameters/*.json
+!.vscode/*.json
+
+# VS Code
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+.history
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Azure CLI
+.azure/
+
+# PowerShell
+*.ps1xml
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Backup files
+*.bak
+*.backup
+
+# IDEs
+.idea/
+*.swp
+*.swo
+*~
+
+# ARM template outputs (generated from Bicep)
+main.json
+modules/**/*.json
+
+# Deployment outputs
+deployment-outputs.json

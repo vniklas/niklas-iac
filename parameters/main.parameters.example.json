@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "eastus"
+    },
+    "environment": {
+      "value": "dev"
+    },
+    "workloadName": {
+      "value": "lz"
+    },
+    "vnetAddressSpace": {
+      "value": "10.0.0.0/16"
+    },
+    "appSubnetAddressSpace": {
+      "value": "10.0.1.0/24"
+    },
+    "dbSubnetAddressSpace": {
+      "value": "10.0.2.0/24"
+    },
+    "mgmtSubnetAddressSpace": {
+      "value": "10.0.3.0/24"
+    },
+    "resourceTags": {
+      "value": {
+        "Environment": "dev",
+        "Project": "LandingZone",
+        "ManagedBy": "Bicep",
+        "CostCenter": "IT",
+        "Owner": "DevOps Team",
+        "CreatedDate": "2025-08-04"
+      }
+    }
+  }
+}

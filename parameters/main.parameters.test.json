@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "swedencentral"
+    },
+    "environment": {
+      "value": "test"
+    },
+    "workloadName": {
+      "value": "lz"
+    },
+    "vnetAddressSpace": {
+      "value": "10.0.0.0/16"
+    },
+    "appSubnetAddressSpace": {
+      "value": "10.0.1.0/24"
+    },
+    "dbSubnetAddressSpace": {
+      "value": "10.0.2.0/24"
+    },
+    "mgmtSubnetAddressSpace": {
+      "value": "10.0.3.0/24"
+    },
+    "bastionSubnetAddressSpace": {
+      "value": "10.0.4.0/27"
+    },
+    "vmAdminUsername": {
+      "value": "azureuser"
+    },
+    "vmAdminPassword": {
+      "value": "TestPassword123!"
+    }
+  }
+}
