@@ -92,13 +92,21 @@ show_environment_status() {
     local total_resources=$(az resource list --resource-group $rg --query 'length(@)' -o tsv 2>/dev/null || echo "0")
     echo -e "  📦 Total resources: $total_resources"
     
-    # Check VMs
-    local vms=$(az vm list --resource-group $rg --query '[].{Name:name, PowerState:powerState}' -o table 2>/dev/null || echo "")
-    if [[ -n "$vms" && "$vms" != "[]" ]]; then
-        echo -e "  💻 Virtual Machines:"
-        az vm list --resource-group $rg --show-details --query '[].{Name:name, PowerState:powerState, Size:hardwareProfile.vmSize}' -o table 2>/dev/null || echo "    None found"
+    # Check VMs with timeout
+    echo -e "  💻 Virtual Machines:"
+    timeout 30s az vm list --resource-group $rg --query '[].{Name:name}' -o table 2>/dev/null || echo "    Timeout checking VMs"
+    
+    # Get VM power states individually (faster than show-details)
+    local vms=$(az vm list --resource-group $rg --query '[].name' -o tsv 2>/dev/null)
+    if [[ -n "$vms" ]]; then
+        while IFS= read -r vm; do
+            if [[ -n "$vm" ]]; then
+                local power_state=$(timeout 10s az vm get-instance-view --resource-group $rg --name $vm --query 'instanceView.statuses[1].displayStatus' -o tsv 2>/dev/null || echo "Unknown")
+                echo -e "    - $vm: $power_state"
+            fi
+        done <<< "$vms"
     else
-        echo -e "  💻 Virtual Machines: None"
+        echo -e "    None found"
     fi
     
     # Check expensive resources

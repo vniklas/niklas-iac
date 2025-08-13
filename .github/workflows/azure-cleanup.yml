@@ -24,7 +24,8 @@ on:
         - deallocate-vms
       confirm_cleanup:
         description: 'Type "CONFIRM" to proceed with cleanup'
-        required: true
+        required: false
+        default: ''
         type: string
   schedule:
     # Run cleanup every day at 6 PM UTC (adjust timezone as needed)
