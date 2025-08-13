@@ -53,14 +53,21 @@ jobs:
       - name: Validate Manual Cleanup
         id: validate
         run: |
-          # For manual dispatch, require confirmation
+          # For manual dispatch, check if confirmation is needed
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if [[ "${{ github.event.inputs.confirm_cleanup }}" != "CONFIRM" ]]; then
-              echo "❌ Cleanup confirmation required. Please type 'CONFIRM' to proceed."
-              exit 1
+            CLEANUP_TYPE="${{ github.event.inputs.cleanup_type }}"
+            
+            # Only require confirmation for destructive operations
+            if [[ "$CLEANUP_TYPE" == "resource-group" || "$CLEANUP_TYPE" == "specific-resources" ]]; then
+              if [[ "${{ github.event.inputs.confirm_cleanup }}" != "CONFIRM" ]]; then
+                echo "❌ Destructive operations require confirmation. Please enter 'CONFIRM' in the confirm_cleanup field."
+                exit 1
+              fi
+              echo "✅ Destructive operation confirmed by user"
+            else
+              echo "✅ Non-destructive operation: $CLEANUP_TYPE"
             fi
             
-            echo "✅ Manual cleanup confirmed by user"
             echo "should-proceed=true" >> $GITHUB_OUTPUT
             
             # Determine which environments to clean
