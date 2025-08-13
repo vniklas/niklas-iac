@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "swedencentral"
+    },
+    "environment": {
+      "value": "prod"
+    },
+    "vmAdminUsername": {
+      "value": "azureuser"
+    },
+    "vmSize": {
+      "value": "Standard_B2s"
+    },
+    "enableBastion": {
+      "value": true
+    },
+    "enableNatGateway": {
+      "value": true
+    },
+    "eventHubSkuName": {
+      "value": "Standard"
+    },
+    "eventHubThroughputUnits": {
+      "value": 2
+    },
+    "tags": {
+      "value": {
+        "Environment": "production",
+        "Project": "AzureLandingZone",
+        "Owner": "Infrastructure Team",
+        "CostCenter": "IT-001",
+        "Backup": "Required",
+        "Monitoring": "Enhanced"
+      }
+    }
+  }
+}

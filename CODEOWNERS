@@ -1,0 +1,28 @@
+# Repository Code Owners
+# These owners will be requested for review when someone opens a PR
+
+# Global owners (fallback for any file not covered by specific rules)
+* @vniklas
+
+# Infrastructure as Code files
+*.bicep @vniklas
+*.json @vniklas
+/parameters/ @vniklas
+
+# GitHub Actions workflows (critical for CI/CD)
+/.github/workflows/ @vniklas
+
+# Scripts (deployment and management)
+/scripts/ @vniklas
+
+# Documentation
+README.md @vniklas
+*.md @vniklas
+
+# Production-specific files require additional review
+/parameters/main.parameters.json @vniklas
+/parameters/main.parameters.prod.json @vniklas
+
+# Security-related files
+/.github/workflows/deploy-prod.yml @vniklas
+/.github/workflows/azure-cleanup.yml @vniklas
