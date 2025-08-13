@@ -13,6 +13,7 @@ The Azure Landing Zone includes:
 - **💻 Compute**: Windows Server 2025 Virtual Machines with monitoring
 - **📊 Monitoring**: Log Analytics Workspace with centralized diagnostic logging
 - **💾 Storage**: Storage Account with diagnostics container and monitoring
+- **📨 Messaging**: Event Hub with Basic tier for cost-effective message receiving (~$11/month)
 - Log Analytics workspace for monitoring
 - Azure Policy assignments for governance
 - RBAC role assignments for access control
@@ -171,6 +172,37 @@ Use the provided script for quick local cleanup:
 2. **Resource Alerts**: Set up budget alerts for cost thresholds
 3. **Right-sizing**: Use Azure Advisor for cost optimization recommendations
 4. **Scheduled Shutdowns**: Enable auto-shutdown for VMs in Azure portal
+
+## 📨 Event Hub Usage
+
+The deployed Event Hub is configured with the cheapest possible settings for basic message receiving:
+
+### Configuration
+- **Tier**: Basic (cheapest option)
+- **Throughput Units**: 1 (minimum)
+- **Retention**: 1 day (shortest)
+- **Partitions**: 2 (good balance for basic messaging)
+- **Estimated Cost**: ~$11 USD/month
+
+### Connection Strings
+Connection strings are securely stored in Key Vault:
+- `eventhub-send-connection-string` - For sending messages
+- `eventhub-listen-connection-string` - For receiving messages
+- `eventhub-manage-connection-string` - For management operations
+
+### Usage Example
+```bash
+# Retrieve connection string from Key Vault
+az keyvault secret show --vault-name <key-vault-name> --name eventhub-listen-connection-string --query value -o tsv
+
+# Send a test message using Azure CLI
+az eventhubs eventhub send --name <event-hub-name> --namespace-name <namespace-name> --message "Hello World"
+```
+
+### Scaling Considerations
+- Start with Basic tier for development/testing
+- Upgrade to Standard tier when you need longer retention or capture features
+- Monitor throughput and add TUs as needed
 
 ## Contributing
 

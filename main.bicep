@@ -52,6 +52,8 @@ var natGatewayName = 'natgw-${namingPrefix}-001'
 var natPublicIpName = 'pip-natgw-${namingPrefix}-001'
 var bastionPublicIpName = 'pip-bas-${namingPrefix}-001'
 var storageAccountName = 'st${workloadName}${environment}${uniqueString(resourceGroup().id)}'
+var eventHubNamespaceName = 'evhns-${namingPrefix}-001'
+var eventHubName = 'evh-${namingPrefix}-messages-001'
 
 // Deploy NAT Gateway
 module natGateway 'modules/networking/natgateway.bicep' = {
@@ -154,6 +156,23 @@ module windowsVM 'modules/compute/vm-windows.bicep' = {
   }
 }
 
+// Deploy Event Hub (cheapest configuration for message receiving)
+module eventHub 'modules/messaging/eventhub.bicep' = {
+  name: 'deploy-eventhub'
+  params: {
+    eventHubNamespaceName: eventHubNamespaceName
+    eventHubName: eventHubName
+    location: location
+    tags: resourceTags
+    skuName: 'Basic' // Cheapest tier
+    throughputUnits: 1 // Minimum and cheapest
+    messageRetentionInDays: 1 // Minimum retention for cost optimization
+    partitionCount: 2 // Good balance for basic messaging
+    keyVaultId: keyVault.outputs.keyVaultId
+    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+  }
+}
+
 // Outputs
 output vnetId string = virtualNetwork.outputs.vnetId
 output vnetName string = virtualNetwork.outputs.vnetName
@@ -169,3 +188,7 @@ output storageAccountName string = storageAccount.outputs.storageAccountName
 output storageAccountId string = storageAccount.outputs.storageAccountId
 output diagnosticsContainerName string = storageAccount.outputs.diagnosticsContainerName
 output primaryBlobEndpoint string = storageAccount.outputs.primaryBlobEndpoint
+output eventHubNamespaceName string = eventHub.outputs.namespaceName
+output eventHubName string = eventHub.outputs.eventHubName
+output eventHubEndpoint string = eventHub.outputs.endpoint
+output eventHubEstimatedCost string = eventHub.outputs.estimatedMonthlyCost
