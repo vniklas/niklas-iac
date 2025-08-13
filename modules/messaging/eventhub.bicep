@@ -50,7 +50,7 @@ resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = {
   }
   properties: {
     isAutoInflateEnabled: false // Keep costs predictable
-    maximumThroughputUnits: throughputUnits
+    maximumThroughputUnits: 0 // Must be 0 when auto-inflate is disabled
     kafkaEnabled: false // Not available in Basic tier anyway
   }
 }
