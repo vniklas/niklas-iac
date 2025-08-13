@@ -66,12 +66,8 @@ resource eventHub 'Microsoft.EventHub/namespaces/eventhubs@2024-01-01' = {
   }
 }
 
-// Default Consumer Group (automatically created, but explicitly defined for clarity)
-resource defaultConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2024-01-01' = {
-  parent: eventHub
-  name: '$Default'
-  properties: {}
-}
+// Note: Consumer groups are automatically managed in Basic tier
+// The $Default consumer group is created automatically
 
 // Send access policy for applications
 resource sendPolicy 'Microsoft.EventHub/namespaces/authorizationRules@2024-01-01' = {
