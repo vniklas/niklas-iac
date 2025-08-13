@@ -1,14 +1,18 @@
-# Azure Landing Zone with Bicep
+# Azure Landing Zone Infrastructure as Code
 
-This project provides a simple Azure Landing Zone implementation using Bicep, following Microsoft's Cloud Adoption Framework (CAF) reference architecture.
+[![Deploy Azure Landing Zone](https://github.com/vniklas/niklas-iac/actions/workflows/azure-deploy.yml/badge.svg)](https://github.com/vniklas/niklas-iac/actions/workflows/azure-deploy.yml)
 
-## Overview
+This repository contains Bicep templates for deploying a comprehensive Azure Landing Zone with GitHub Actions CI/CD automation.
 
-This landing zone includes:
-- Virtual Network with subnets for different tiers
-- Network Security Groups with baseline security rules
-- Resource Groups with consistent naming convention
-- Azure Key Vault for secrets management
+## 🏗️ Architecture Overview
+
+The Azure Landing Zone includes:
+
+- **🌐 Networking**: Virtual Network with segmented subnets, NAT Gateway, Network Security Groups
+- **🔐 Security**: Azure Key Vault, Network Security Groups, Azure Bastion for secure access
+- **💻 Compute**: Windows Server 2025 Virtual Machines with monitoring
+- **📊 Monitoring**: Log Analytics Workspace with centralized diagnostic logging
+- **💾 Storage**: Storage Account with diagnostics container and monitoring
 - Log Analytics workspace for monitoring
 - Azure Policy assignments for governance
 - RBAC role assignments for access control
