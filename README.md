@@ -121,6 +121,57 @@ To add new components:
 - **Monitoring**: Comprehensive logging and monitoring
 - **Governance**: Azure Policy and RBAC implementation
 
+## 🧹 Cost Management & Cleanup
+
+### Automated Cleanup with GitHub Actions
+
+The repository includes automated cleanup workflows to help manage Azure costs:
+
+#### Manual Cleanup (On-Demand)
+```bash
+# Navigate to GitHub Actions → "Azure Resource Cleanup" → "Run workflow"
+```
+
+**Cleanup Options:**
+- **Stop VMs**: Reduces compute costs, keeps storage (💰 ~70% cost reduction)
+- **Deallocate VMs**: Eliminates compute costs, releases IPs (💰 ~85% cost reduction)  
+- **Delete Specific Resources**: Removes VMs, Bastion, NAT Gateway (💰 ~90% cost reduction)
+- **Delete Resource Group**: Removes everything (💰 100% cost elimination)
+
+**Environments:**
+- `dev` - Development environment only
+- `test` - Test environment only  
+- `all` - Both environments
+
+#### Scheduled Cleanup
+- **Daily at 6 PM UTC**: Automatically stops VMs to save costs
+- Modify schedule in `.github/workflows/azure-cleanup.yml`
+
+### Local Cleanup Script
+
+Use the provided script for quick local cleanup:
+
+```bash
+# Check current status
+./scripts/azure-cleanup.sh dev status
+
+# Stop VMs (quick cost reduction)
+./scripts/azure-cleanup.sh dev stop
+
+# Deallocate VMs (better cost reduction)
+./scripts/azure-cleanup.sh all deallocate
+
+# Delete everything (maximum cost savings)
+./scripts/azure-cleanup.sh test delete-all
+```
+
+### Cost Monitoring Tips
+
+1. **Azure Cost Management**: Monitor spending at https://portal.azure.com/#view/Microsoft_Azure_CostManagement
+2. **Resource Alerts**: Set up budget alerts for cost thresholds
+3. **Right-sizing**: Use Azure Advisor for cost optimization recommendations
+4. **Scheduled Shutdowns**: Enable auto-shutdown for VMs in Azure portal
+
 ## Contributing
 
 1. Follow the established naming conventions

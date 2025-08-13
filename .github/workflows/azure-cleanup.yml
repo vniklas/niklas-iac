@@ -1,0 +1,332 @@
+name: Azure Resource Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to clean up'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - test
+        - all
+      cleanup_type:
+        description: 'Type of cleanup to perform'
+        required: true
+        default: 'resource-group'
+        type: choice
+        options:
+        - resource-group
+        - specific-resources
+        - stop-vms
+        - deallocate-vms
+      confirm_cleanup:
+        description: 'Type "CONFIRM" to proceed with cleanup'
+        required: true
+        type: string
+  schedule:
+    # Run cleanup every day at 6 PM UTC (adjust timezone as needed)
+    # This will stop VMs to save costs but keep infrastructure
+    - cron: '0 18 * * *'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_LOCATION: swedencentral
+
+jobs:
+  validate-cleanup:
+    name: Validate Cleanup Request
+    runs-on: ubuntu-latest
+    outputs:
+      should-proceed: ${{ steps.validate.outputs.should-proceed }}
+      cleanup-dev: ${{ steps.validate.outputs.cleanup-dev }}
+      cleanup-test: ${{ steps.validate.outputs.cleanup-test }}
+      cleanup-type: ${{ steps.validate.outputs.cleanup-type }}
+    
+    steps:
+      - name: Validate Manual Cleanup
+        id: validate
+        run: |
+          # For manual dispatch, require confirmation
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.event.inputs.confirm_cleanup }}" != "CONFIRM" ]]; then
+              echo "❌ Cleanup confirmation required. Please type 'CONFIRM' to proceed."
+              exit 1
+            fi
+            
+            echo "✅ Manual cleanup confirmed by user"
+            echo "should-proceed=true" >> $GITHUB_OUTPUT
+            
+            # Determine which environments to clean
+            case "${{ github.event.inputs.environment }}" in
+              "dev")
+                echo "cleanup-dev=true" >> $GITHUB_OUTPUT
+                echo "cleanup-test=false" >> $GITHUB_OUTPUT
+                ;;
+              "test")
+                echo "cleanup-dev=false" >> $GITHUB_OUTPUT
+                echo "cleanup-test=true" >> $GITHUB_OUTPUT
+                ;;
+              "all")
+                echo "cleanup-dev=true" >> $GITHUB_OUTPUT
+                echo "cleanup-test=true" >> $GITHUB_OUTPUT
+                ;;
+            esac
+            
+            echo "cleanup-type=${{ github.event.inputs.cleanup_type }}" >> $GITHUB_OUTPUT
+          else
+            # For scheduled runs, only stop VMs
+            echo "🕐 Scheduled cleanup - stopping VMs to save costs"
+            echo "should-proceed=true" >> $GITHUB_OUTPUT
+            echo "cleanup-dev=true" >> $GITHUB_OUTPUT
+            echo "cleanup-test=true" >> $GITHUB_OUTPUT
+            echo "cleanup-type=stop-vms" >> $GITHUB_OUTPUT
+          fi
+
+  cleanup-dev:
+    name: Cleanup Dev Environment
+    runs-on: ubuntu-latest
+    needs: validate-cleanup
+    environment: dev
+    if: needs.validate-cleanup.outputs.should-proceed == 'true' && needs.validate-cleanup.outputs.cleanup-dev == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Stop Virtual Machines
+        if: contains(needs.validate-cleanup.outputs.cleanup-type, 'stop-vms') || contains(needs.validate-cleanup.outputs.cleanup-type, 'deallocate-vms')
+        run: |
+          echo "🛑 Stopping VMs in dev environment..."
+          
+          # Check if resource group exists
+          if az group exists --name rg-landingzone-dev-001; then
+            # Get all VMs in the resource group
+            VMS=$(az vm list --resource-group rg-landingzone-dev-001 --query '[].name' -o tsv)
+            
+            if [ -n "$VMS" ]; then
+              for vm in $VMS; do
+                echo "Stopping VM: $vm"
+                if [[ "${{ needs.validate-cleanup.outputs.cleanup-type }}" == "deallocate-vms" ]]; then
+                  az vm deallocate --resource-group rg-landingzone-dev-001 --name $vm --no-wait
+                else
+                  az vm stop --resource-group rg-landingzone-dev-001 --name $vm --no-wait
+                fi
+              done
+              echo "✅ VM stop commands issued for dev environment"
+            else
+              echo "ℹ️ No VMs found in dev environment"
+            fi
+          else
+            echo "ℹ️ Dev resource group does not exist"
+          fi
+
+      - name: Delete Specific Resources
+        if: needs.validate-cleanup.outputs.cleanup-type == 'specific-resources'
+        run: |
+          echo "🗑️ Deleting specific high-cost resources in dev environment..."
+          
+          if az group exists --name rg-landingzone-dev-001; then
+            # Delete VMs (most expensive)
+            echo "Deleting Virtual Machines..."
+            az vm list --resource-group rg-landingzone-dev-001 --query '[].id' -o tsv | \
+              xargs -r az vm delete --yes --no-wait --ids
+            
+            # Delete Bastion (expensive)
+            echo "Deleting Azure Bastion..."
+            az network bastion list --resource-group rg-landingzone-dev-001 --query '[].id' -o tsv | \
+              xargs -r az network bastion delete --no-wait --ids
+            
+            # Delete Public IPs
+            echo "Deleting Public IP addresses..."
+            az network public-ip list --resource-group rg-landingzone-dev-001 --query '[].id' -o tsv | \
+              xargs -r az network public-ip delete --no-wait --ids
+            
+            # Delete NAT Gateway
+            echo "Deleting NAT Gateway..."
+            az network nat gateway list --resource-group rg-landingzone-dev-001 --query '[].id' -o tsv | \
+              xargs -r az network nat gateway delete --no-wait --ids
+            
+            echo "✅ High-cost resource deletion initiated for dev environment"
+          else
+            echo "ℹ️ Dev resource group does not exist"
+          fi
+
+      - name: Delete Resource Group
+        if: needs.validate-cleanup.outputs.cleanup-type == 'resource-group'
+        run: |
+          echo "🗑️ Deleting entire dev resource group..."
+          
+          if az group exists --name rg-landingzone-dev-001; then
+            az group delete --name rg-landingzone-dev-001 --yes --no-wait
+            echo "✅ Dev resource group deletion initiated"
+          else
+            echo "ℹ️ Dev resource group does not exist"
+          fi
+
+  cleanup-test:
+    name: Cleanup Test Environment
+    runs-on: ubuntu-latest
+    needs: validate-cleanup
+    if: needs.validate-cleanup.outputs.should-proceed == 'true' && needs.validate-cleanup.outputs.cleanup-test == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Stop Virtual Machines
+        if: contains(needs.validate-cleanup.outputs.cleanup-type, 'stop-vms') || contains(needs.validate-cleanup.outputs.cleanup-type, 'deallocate-vms')
+        run: |
+          echo "🛑 Stopping VMs in test environment..."
+          
+          if az group exists --name rg-landingzone-test-001; then
+            VMS=$(az vm list --resource-group rg-landingzone-test-001 --query '[].name' -o tsv)
+            
+            if [ -n "$VMS" ]; then
+              for vm in $VMS; do
+                echo "Stopping VM: $vm"
+                if [[ "${{ needs.validate-cleanup.outputs.cleanup-type }}" == "deallocate-vms" ]]; then
+                  az vm deallocate --resource-group rg-landingzone-test-001 --name $vm --no-wait
+                else
+                  az vm stop --resource-group rg-landingzone-test-001 --name $vm --no-wait
+                fi
+              done
+              echo "✅ VM stop commands issued for test environment"
+            else
+              echo "ℹ️ No VMs found in test environment"
+            fi
+          else
+            echo "ℹ️ Test resource group does not exist"
+          fi
+
+      - name: Delete Specific Resources
+        if: needs.validate-cleanup.outputs.cleanup-type == 'specific-resources'
+        run: |
+          echo "🗑️ Deleting specific high-cost resources in test environment..."
+          
+          if az group exists --name rg-landingzone-test-001; then
+            # Delete VMs
+            az vm list --resource-group rg-landingzone-test-001 --query '[].id' -o tsv | \
+              xargs -r az vm delete --yes --no-wait --ids
+            
+            # Delete Bastion
+            az network bastion list --resource-group rg-landingzone-test-001 --query '[].id' -o tsv | \
+              xargs -r az network bastion delete --no-wait --ids
+            
+            # Delete Public IPs
+            az network public-ip list --resource-group rg-landingzone-test-001 --query '[].id' -o tsv | \
+              xargs -r az network public-ip delete --no-wait --ids
+            
+            # Delete NAT Gateway
+            az network nat gateway list --resource-group rg-landingzone-test-001 --query '[].id' -o tsv | \
+              xargs -r az network nat gateway delete --no-wait --ids
+            
+            echo "✅ High-cost resource deletion initiated for test environment"
+          else
+            echo "ℹ️ Test resource group does not exist"
+          fi
+
+      - name: Delete Resource Group
+        if: needs.validate-cleanup.outputs.cleanup-type == 'resource-group'
+        run: |
+          echo "🗑️ Deleting entire test resource group..."
+          
+          if az group exists --name rg-landingzone-test-001; then
+            az group delete --name rg-landingzone-test-001 --yes --no-wait
+            echo "✅ Test resource group deletion initiated"
+          else
+            echo "ℹ️ Test resource group does not exist"
+          fi
+
+  cleanup-summary:
+    name: Cleanup Summary
+    runs-on: ubuntu-latest
+    needs: [validate-cleanup, cleanup-dev, cleanup-test]
+    if: always() && needs.validate-cleanup.outputs.should-proceed == 'true'
+    
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Generate Cleanup Report
+        run: |
+          echo "# 🧹 Azure Cleanup Report" | tee cleanup-report.md
+          echo "" | tee -a cleanup-report.md
+          echo "**Cleanup Type:** ${{ needs.validate-cleanup.outputs.cleanup-type }}" | tee -a cleanup-report.md
+          echo "**Triggered:** ${{ github.event_name }}" | tee -a cleanup-report.md
+          echo "**Timestamp:** $(date -u)" | tee -a cleanup-report.md
+          echo "" | tee -a cleanup-report.md
+          
+          echo "## Resource Groups Status" | tee -a cleanup-report.md
+          echo "" | tee -a cleanup-report.md
+          
+          # Check dev environment
+          if [[ "${{ needs.validate-cleanup.outputs.cleanup-dev }}" == "true" ]]; then
+            if az group exists --name rg-landingzone-dev-001; then
+              RESOURCE_COUNT=$(az resource list --resource-group rg-landingzone-dev-001 --query 'length(@)')
+              echo "- **Dev Environment (rg-landingzone-dev-001):** $RESOURCE_COUNT resources remaining" | tee -a cleanup-report.md
+            else
+              echo "- **Dev Environment (rg-landingzone-dev-001):** ✅ Deleted" | tee -a cleanup-report.md
+            fi
+          fi
+          
+          # Check test environment  
+          if [[ "${{ needs.validate-cleanup.outputs.cleanup-test }}" == "true" ]]; then
+            if az group exists --name rg-landingzone-test-001; then
+              RESOURCE_COUNT=$(az resource list --resource-group rg-landingzone-test-001 --query 'length(@)')
+              echo "- **Test Environment (rg-landingzone-test-001):** $RESOURCE_COUNT resources remaining" | tee -a cleanup-report.md
+            else
+              echo "- **Test Environment (rg-landingzone-test-001):** ✅ Deleted" | tee -a cleanup-report.md
+            fi
+          fi
+          
+          echo "" | tee -a cleanup-report.md
+          echo "## Cost Impact" | tee -a cleanup-report.md
+          echo "" | tee -a cleanup-report.md
+          
+          case "${{ needs.validate-cleanup.outputs.cleanup-type }}" in
+            "stop-vms")
+              echo "- 💰 **Compute costs reduced** by stopping VMs (storage costs continue)" | tee -a cleanup-report.md
+              ;;
+            "deallocate-vms")
+              echo "- 💰 **Compute costs eliminated** by deallocating VMs (storage costs continue)" | tee -a cleanup-report.md
+              ;;
+            "specific-resources")
+              echo "- 💰 **Major cost reduction** by removing VMs, Bastion, and networking" | tee -a cleanup-report.md
+              ;;
+            "resource-group")
+              echo "- 💰 **All costs eliminated** by deleting resource groups" | tee -a cleanup-report.md
+              ;;
+          esac
+          
+          echo "" | tee -a cleanup-report.md
+          echo "## Next Steps" | tee -a cleanup-report.md
+          echo "" | tee -a cleanup-report.md
+          echo "- To redeploy infrastructure, push to main branch or run deployment workflow manually" | tee -a cleanup-report.md
+          echo "- Monitor Azure billing to confirm cost reductions" | tee -a cleanup-report.md
+          echo "- Consider using Azure Cost Management for ongoing cost monitoring" | tee -a cleanup-report.md
+          
+          echo "📊 Cleanup completed successfully!"
