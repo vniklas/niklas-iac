@@ -1,5 +1,6 @@
 // ==============================================================================
 // Azure Landing Zone Infrastructure as Code
+// Testing new repository guardrails and branching strategy workflow
 // ==============================================================================
 
 targetScope = 'resourceGroup'

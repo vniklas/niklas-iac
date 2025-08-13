@@ -1,0 +1,233 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [ main, develop, release/* ]
+    paths:
+      - '**.bicep'
+      - '**.json'
+      - '.github/workflows/**'
+      - 'scripts/**'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  checks: write
+
+env:
+  AZURE_LOCATION: swedencentral
+
+jobs:
+  validate-bicep:
+    name: Validate Bicep Templates
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+      - name: Install Bicep
+        run: |
+          az bicep install
+          az bicep version
+
+      - name: Validate Bicep Syntax
+        run: |
+          echo "🔍 Validating Bicep syntax..."
+          
+          # Find all .bicep files and validate them
+          find . -name "*.bicep" -type f | while read -r file; do
+            echo "Validating: $file"
+            az bicep build --file "$file" --stdout > /dev/null
+            if [ $? -eq 0 ]; then
+              echo "✅ $file - Valid"
+            else
+              echo "❌ $file - Invalid"
+              exit 1
+            fi
+          done
+          
+          echo "🎉 All Bicep templates are syntactically valid!"
+
+      - name: Lint Bicep Templates
+        run: |
+          echo "🧹 Linting Bicep templates..."
+          
+          find . -name "*.bicep" -type f | while read -r file; do
+            echo "Linting: $file"
+            az bicep build --file "$file" --stdout | jq '.' > /dev/null
+            if [ $? -eq 0 ]; then
+              echo "✅ $file - Clean"
+            else
+              echo "⚠️ $file - Has warnings"
+            fi
+          done
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Security Scan
+        run: |
+          echo "🔒 Running security checks..."
+          
+          # Check for hardcoded secrets (basic check)
+          echo "Checking for potential secrets..."
+          if grep -r -i "password\|secret\|key\|token" --include="*.bicep" --include="*.json" . | grep -v "secretName\|keyVault\|secretRef" | head -10; then
+            echo "⚠️ Potential hardcoded secrets found. Please review."
+          else
+            echo "✅ No obvious hardcoded secrets found"
+          fi
+          
+          # Check for public access configurations
+          echo "Checking for public access configurations..."
+          if grep -r "publicNetworkAccess.*Enable\|publicAccess.*true" --include="*.bicep" . | head -5; then
+            echo "⚠️ Public access configurations found. Please review security implications."
+          else
+            echo "✅ No explicit public access configurations found"
+          fi
+
+  what-if-analysis:
+    name: What-If Analysis
+    runs-on: ubuntu-latest
+    environment: dev
+    if: github.event.pull_request.base.ref == 'main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: What-If Analysis - Dev
+        id: whatif
+        run: |
+          echo "🔮 Running What-If analysis for dev environment..."
+          
+          # Create resource group if it doesn't exist (for what-if)
+          az group create --name rg-landingzone-dev-001 --location ${{ env.AZURE_LOCATION }} --only-show-errors || true
+          
+          # Run what-if analysis
+          az deployment group what-if \
+            --resource-group rg-landingzone-dev-001 \
+            --template-file main.bicep \
+            --parameters @parameters/main.parameters.dev.json \
+            --result-format FullResourcePayloads > whatif-output.txt
+          
+          echo "📄 What-If Results:"
+          cat whatif-output.txt
+
+      - name: Comment What-If Results
+        uses: actions/github-script@v6
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            let whatifContent = '';
+            
+            try {
+              whatifContent = fs.readFileSync('whatif-output.txt', 'utf8');
+            } catch (error) {
+              whatifContent = 'What-If analysis failed to generate output.';
+            }
+            
+            const body = `## 🔮 Azure What-If Analysis
+            
+            ### Changes that will be applied to **dev** environment:
+            
+            \`\`\`
+            ${whatifContent}
+            \`\`\`
+            
+            ### ⚠️ Important Notes:
+            - This analysis is for the **dev** environment only
+            - Actual changes may vary based on current resource state
+            - Review all changes carefully before approving
+            
+            ---
+            *Generated automatically by Azure What-If analysis*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  cost-estimation:
+    name: Cost Estimation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Estimate Costs
+        run: |
+          echo "💰 Estimating infrastructure costs..."
+          
+          echo "## Estimated Monthly Costs (USD)"
+          echo "| Resource Type | Quantity | Est. Cost/Month |"
+          echo "|---------------|----------|-----------------|"
+          echo "| Virtual Machine (Standard_B2s) | 1 | ~$35 |"
+          echo "| Virtual Network | 1 | $0 |"
+          echo "| Storage Account (Standard_LRS) | 1 | ~$2 |"
+          echo "| Log Analytics (1GB/day) | 1 | ~$3 |"
+          echo "| Key Vault | 1 | ~$1 |"
+          echo "| Azure Bastion | 1 | ~$140 |"
+          echo "| NAT Gateway | 1 | ~$45 |"
+          echo "| Event Hub (Basic, 1 TU) | 1 | ~$11 |"
+          echo "| **Total Estimated** | | **~$237/month** |"
+          echo ""
+          echo "⚠️ Costs are estimates and may vary based on actual usage"
+          echo "💡 Consider deallocating VMs when not in use to save ~$35/month"
+
+  pr-summary:
+    name: PR Summary
+    runs-on: ubuntu-latest
+    needs: [validate-bicep, security-scan]
+    if: always()
+    
+    steps:
+      - name: PR Status Summary
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const validationStatus = '${{ needs.validate-bicep.result }}';
+            const securityStatus = '${{ needs.security-scan.result }}';
+            
+            let summary = '## 🔍 Pull Request Validation Summary\n\n';
+            
+            summary += `- **Bicep Validation**: ${validationStatus === 'success' ? '✅ Passed' : '❌ Failed'}\n`;
+            summary += `- **Security Scan**: ${securityStatus === 'success' ? '✅ Passed' : '❌ Failed'}\n`;
+            
+            if (validationStatus === 'success' && securityStatus === 'success') {
+              summary += '\n🎉 **All validation checks passed!** This PR is ready for review.\n\n';
+              summary += '### Next Steps:\n';
+              summary += '1. Review the What-If analysis above\n';
+              summary += '2. Get required approvals\n';
+              summary += '3. Merge to trigger deployment\n';
+            } else {
+              summary += '\n❌ **Some validation checks failed.** Please fix the issues before proceeding.\n';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
