@@ -1,0 +1,65 @@
+name: Deploy Subscription Modules
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type 'CONFIRM' to deploy subscription-scoped modules"
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AZURE_LOCATION: swedencentral
+
+jobs:
+  deploy-subscription:
+    name: Deploy subscription-scoped modules
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.confirm == 'CONFIRM' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate subscription template (What-If)
+        run: |
+          echo "🔮 Running subscription-scoped What-If for modules/security/policy.bicep"
+          az deployment sub what-if \
+            --location ${AZURE_LOCATION} \
+            --template-file modules/security/policy.bicep \
+            --parameters allowedLocations='["swedencentral"]' displayNamePrefix='lz-policy' \
+            --result-format FullResourcePayloads > whatif-sub.txt || true
+
+      - name: Upload What-If results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: subscription-whatif
+          path: whatif-sub.txt
+
+      - name: Deploy subscription-scoped module
+        run: |
+          echo "🚀 Deploying subscription-scoped modules (this requires Owner/PolicyContributor on subscription)"
+          az deployment sub create \
+            --location ${AZURE_LOCATION} \
+            --template-file modules/security/policy.bicep \
+            --parameters allowedLocations='["swedencentral"]' displayNamePrefix='lz-policy' \
+            --only-show-errors
+
+      - name: Notify
+        run: echo "✅ Subscription-scoped deployment completed (or failed). Check logs/artifacts for details."
