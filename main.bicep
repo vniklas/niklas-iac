@@ -30,7 +30,6 @@ param mgmtSubnetAddressSpace string = '10.0.3.0/24'
 param bastionSubnetAddressSpace string = '10.0.4.0/27'
 
 @description('VM administrator username')
-@secure()
 param vmAdminUsername string
 
 @description('VM administrator password')
@@ -51,7 +50,8 @@ var logAnalyticsName = 'law-${namingPrefix}-001'
 var natGatewayName = 'natgw-${namingPrefix}-001'
 var natPublicIpName = 'pip-natgw-${namingPrefix}-001'
 var bastionPublicIpName = 'pip-bas-${namingPrefix}-001'
-var storageAccountName = 'st${workloadName}${environment}${uniqueString(resourceGroup().id)}'
+// Storage account names must be lowercase and <=24 chars; use a truncated unique suffix
+var storageAccountName = toLower('st${workloadName}${environment}${substring(uniqueString(resourceGroup().id), 0, 8)}')
 var eventHubNamespaceName = 'evhns-${namingPrefix}-001'
 var eventHubName = 'evh-${namingPrefix}-messages-001'
 
@@ -168,7 +168,6 @@ module eventHub 'modules/messaging/eventhub.bicep' = {
     throughputUnits: 1 // Minimum and cheapest
     messageRetentionInDays: 1 // Minimum retention for cost optimization
     partitionCount: 2 // Good balance for basic messaging
-    keyVaultId: keyVault.outputs.keyVaultId
     logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
   }
 }

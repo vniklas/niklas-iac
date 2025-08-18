@@ -32,9 +32,6 @@ param messageRetentionInDays int = 1
 @maxValue(32)
 param partitionCount int = 2
 
-@description('Key Vault resource ID for storing connection strings')
-param keyVaultId string
-
 @description('Log Analytics workspace ID for monitoring')
 param logAnalyticsWorkspaceId string
 
@@ -133,36 +130,7 @@ resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
   }
 }
 
-// Store connection strings securely in Key Vault
-resource sendConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  name: '${last(split(keyVaultId, '/'))}/eventhub-send-connection-string'
-  properties: {
-    value: sendPolicy.listKeys().primaryConnectionString
-    attributes: {
-      enabled: true
-    }
-  }
-}
-
-resource listenConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  name: '${last(split(keyVaultId, '/'))}/eventhub-listen-connection-string'
-  properties: {
-    value: listenPolicy.listKeys().primaryConnectionString
-    attributes: {
-      enabled: true
-    }
-  }
-}
-
-resource manageConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  name: '${last(split(keyVaultId, '/'))}/eventhub-manage-connection-string'
-  properties: {
-    value: managePolicy.listKeys().primaryConnectionString
-    attributes: {
-      enabled: true
-    }
-  }
-}
+// NOTE: Key Vault secret creation and listKeys() usage removed. Prefer using Managed Identities and RBAC or a post-deploy process to store connection strings in Key Vault.
 
 // Outputs
 @description('Event Hub namespace resource ID')
