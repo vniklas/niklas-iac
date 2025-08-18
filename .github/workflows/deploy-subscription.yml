@@ -55,11 +55,44 @@ jobs:
       - name: Deploy subscription-scoped module
         run: |
           echo "🚀 Deploying subscription-scoped modules (this requires Owner/PolicyContributor on subscription)"
-          az deployment sub create \
-            --location ${AZURE_LOCATION} \
-            --template-file modules/security/policy.bicep \
-            --parameters allowedLocations='["swedencentral"]' displayNamePrefix='lz-policy' \
-            --only-show-errors
+          az --version
+          az account show
+
+          ATTEMPTS=0
+          MAX=3
+          until [ $ATTEMPTS -ge $MAX ]
+          do
+            ATTEMPTS=$((ATTEMPTS+1))
+            echo "Attempt $ATTEMPTS of $MAX"
+
+            # Run deployment with debug output captured to file
+            az deployment sub create \
+              --location ${AZURE_LOCATION} \
+              --template-file modules/security/policy.bicep \
+              --parameters allowedLocations='["swedencentral"]' displayNamePrefix='lz-policy' \
+              --debug > deploy-sub-debug.txt 2>&1 && {
+                echo "✅ Deployment succeeded on attempt $ATTEMPTS";
+                break;
+              }
+
+            echo "⚠️ Deployment attempt $ATTEMPTS failed. Sleeping $((ATTEMPTS * 10))s before retry..."
+            sleep $((ATTEMPTS * 10))
+          done
+
+          if [ $ATTEMPTS -ge $MAX ]; then
+            echo "❌ Deployment failed after $MAX attempts. Dumping debug log..."
+            echo "--- Debug log start ---"
+            tail -n +1 deploy-sub-debug.txt || true
+            echo "--- Debug log end ---"
+            exit 1
+          fi
+
+      - name: Upload deployment debug log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-sub-debug
+          path: deploy-sub-debug.txt
 
       - name: Notify
         run: echo "✅ Subscription-scoped deployment completed (or failed). Check logs/artifacts for details."
