@@ -55,6 +55,13 @@ var storageAccountName = toLower('st${workloadName}${environment}${substring(uni
 var eventHubNamespaceName = 'evhns-${namingPrefix}-001'
 var eventHubName = 'evh-${namingPrefix}-messages-001'
 
+// Create a user-assigned managed identity to be shared by resources (VM, apps)
+resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
+  name: 'uai-${namingPrefix}-001'
+  location: location
+  tags: resourceTags
+}
+
 // Deploy NAT Gateway
 module natGateway 'modules/networking/natgateway.bicep' = {
   name: 'deploy-natgateway'
@@ -152,7 +159,7 @@ module windowsVM 'modules/compute/vm-windows.bicep' = {
     adminPassword: vmAdminPassword
     subnetId: virtualNetwork.outputs.mgmtSubnetId
     vmSize: 'Standard_B2s'
-    keyVaultId: keyVault.outputs.keyVaultId
+    userAssignedIdentityId: userAssignedIdentity.id
   }
 }
 

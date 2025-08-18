@@ -23,8 +23,8 @@ param subnetId string
 @description('Resource tags')
 param tags object
 
-@description('Key Vault resource ID for storing VM password')
-param keyVaultId string
+@description('User-assigned managed identity resource ID to attach to the VM')
+param userAssignedIdentityId string = ''
 
 // Variables
 var nicName = 'nic-${vmName}'
@@ -58,7 +58,10 @@ resource virtualMachine 'Microsoft.Compute/virtualMachines@2024-07-01' = {
   location: location
   tags: tags
   identity: {
-    type: 'SystemAssigned'
+    type: userAssignedIdentityId != '' ? 'SystemAssigned, UserAssigned' : 'SystemAssigned'
+    userAssignedIdentities: userAssignedIdentityId != '' ? {
+      '${userAssignedIdentityId}': {}
+    } : {}
   }
   properties: {
     hardwareProfile: {
@@ -119,16 +122,7 @@ resource virtualMachine 'Microsoft.Compute/virtualMachines@2024-07-01' = {
   }
 }
 
-// Store admin password in Key Vault
-resource keyVaultSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  name: '${last(split(keyVaultId, '/'))}/vm-${vmName}-admin-password'
-  properties: {
-    value: adminPassword
-    attributes: {
-      enabled: true
-    }
-  }
-}
+// NOTE: Removed in-template Key Vault secret write. Use managed identity + RBAC or a post-deploy process to store secrets securely.
 
 // Azure Monitor Agent extension for monitoring
 resource azureMonitorAgent 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = {

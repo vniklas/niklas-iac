@@ -68,6 +68,29 @@ jobs:
             fi
           done
 
+      - name: Azure Deployment Validate (optional)
+        if: >-
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' && secrets.AZURE_SUBSCRIPTION_ID != ''
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run az deployment group validate (optional)
+        if: >-
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' && secrets.AZURE_SUBSCRIPTION_ID != ''
+        run: |
+          echo "🔧 Validating ARM deployment for dev environment..."
+          az group create --name rg-landingzone-dev-001 --location ${{ env.AZURE_LOCATION }} --only-show-errors || true
+          az deployment group validate \
+            --resource-group rg-landingzone-dev-001 \
+            --template-file main.bicep \
+            --parameters @parameters/main.parameters.dev.json
+          echo "✅ Deployment validation completed"
+
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
