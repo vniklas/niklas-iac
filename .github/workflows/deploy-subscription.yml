@@ -15,6 +15,10 @@ permissions:
 env:
   AZURE_LOCATION: swedencentral
 
+concurrency:
+  group: az-deploy-subscription-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy-subscription:
     name: Deploy subscription-scoped modules
@@ -27,7 +31,9 @@ jobs:
 
       - name: Install Azure CLI
         run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          if ! command -v az >/dev/null 2>&1; then
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          fi
 
       - name: Azure Login
         uses: azure/login@v2
@@ -65,7 +71,7 @@ jobs:
             ATTEMPTS=$((ATTEMPTS+1))
             echo "Attempt $ATTEMPTS of $MAX"
 
-            # Run deployment with debug output captured to file
+            # Run deployment with debug output captured to file (avoid streaming to possibly flaky console)
             az deployment sub create \
               --location ${AZURE_LOCATION} \
               --template-file modules/security/policy.bicep \

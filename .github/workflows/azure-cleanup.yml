@@ -39,6 +39,10 @@ permissions:
 env:
   AZURE_LOCATION: swedencentral
 
+concurrency:
+  group: az-cleanup-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-cleanup:
     name: Validate Cleanup Request
@@ -106,6 +110,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install Azure CLI
+        run: |
+          if ! command -v az >/dev/null 2>&1; then
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          fi
 
       - name: Azure Login
         uses: azure/login@v2
@@ -188,12 +198,18 @@ jobs:
     name: Cleanup Test Environment
     runs-on: ubuntu-latest
     needs: validate-cleanup
-    environment: dev
+  environment: test
     if: needs.validate-cleanup.outputs.should-proceed == 'true' && needs.validate-cleanup.outputs.cleanup-test == 'true'
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install Azure CLI
+        run: |
+          if ! command -v az >/dev/null 2>&1; then
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          fi
 
       - name: Azure Login
         uses: azure/login@v2
@@ -274,6 +290,12 @@ jobs:
     if: always() && needs.validate-cleanup.outputs.should-proceed == 'true'
     
     steps:
+      - name: Install Azure CLI
+        run: |
+          if ! command -v az >/dev/null 2>&1; then
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          fi
+
       - name: Azure Login
         uses: azure/login@v2
         with:

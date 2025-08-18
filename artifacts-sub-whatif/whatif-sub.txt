@@ -1,0 +1,42 @@
+Note: The result may contain false positive predictions (noise).
+You can help us improve the accuracy of the result by opening an issue here: https://aka.ms/WhatIfIssues
+
+Resource and property changes are indicated with this symbol:
+  + Create
+
+The deployment will update the following scope:
+
+Scope: /subscriptions/1ff26575-386a-4719-ad5d-a2851901f80a
+
+  + Microsoft.Authorization/policyAssignments/lz-policy-allowed-locations-assignment [2021-06-01]
+
+      apiVersion:                              "2021-06-01"
+      id:                                      "/subscriptions/1ff26575-386a-4719-ad5d-a2851901f80a/providers/Microsoft.Authorization/policyAssignments/lz-policy-allowed-locations-assignment"
+      name:                                    "lz-policy-allowed-locations-assignment"
+      properties.description:                  "Assigns Allowed Locations policy for the subscription to restrict deployments to approved regions."
+      properties.displayName:                  "Enforce Allowed Locations for Landing Zone"
+      properties.parameters.allowedLocations.value: [
+        0: "swedencentral"
+      ]
+      properties.policyDefinitionId:           "/subscriptions/1ff26575-386a-4719-ad5d-a2851901f80a/providers/Microsoft.Authorization/policyDefinitions/lz-policy-allowed-locations"
+      type:                                    "Microsoft.Authorization/policyAssignments"
+
+  + Microsoft.Authorization/policyDefinitions/lz-policy-allowed-locations [2021-06-01]
+
+      apiVersion:                                                  "2021-06-01"
+      id:                                                          "/subscriptions/1ff26575-386a-4719-ad5d-a2851901f80a/providers/Microsoft.Authorization/policyDefinitions/lz-policy-allowed-locations"
+      name:                                                        "lz-policy-allowed-locations"
+      properties.description:                                      "Deny creation of resources outside the allowed locations list"
+      properties.displayName:                                      "Allowed locations for Landing Zone"
+      properties.mode:                                             "All"
+      properties.parameters.allowedLocations.metadata.description: "The list of allowed Azure locations."
+      properties.parameters.allowedLocations.metadata.displayName: "Allowed locations"
+      properties.parameters.allowedLocations.type:                 "Array"
+      properties.policyRule.if.not.field:                          "location"
+      properties.policyRule.if.not.in: [
+        0: "swedencentral"
+      ]
+      properties.policyRule.then.effect:                           "deny"
+      type:                                                        "Microsoft.Authorization/policyDefinitions"
+
+Resource changes: 2 to create.

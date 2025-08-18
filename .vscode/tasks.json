@@ -1,138 +1,151 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "Validate Bicep Template",
-            "type": "shell",
-            "command": "az",
-            "args": [
-                "deployment",
-                "group",
-                "validate",
-                "--resource-group",
-                "rg-landingzone-prod-001",
-                "--template-file",
-                "main.bicep",
-                "--parameters",
-                "@parameters/main.parameters.json"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": []
-        },
-        {
-            "label": "Build Bicep Template",
-            "type": "shell",
-            "command": "az",
-            "args": [
-                "bicep",
-                "build",
-                "--file",
-                "main.bicep"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": []
-        },
-        {
-            "label": "Deploy Azure Landing Zone (PowerShell)",
-            "type": "shell",
-            "command": "pwsh",
-            "args": [
-                "-File",
-                "scripts/deploy.ps1"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": []
-        },
-        {
-            "label": "Deploy Azure Landing Zone (Bash)",
-            "type": "shell",
-            "command": "bash",
-            "args": [
-                "scripts/deploy.sh"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": []
-        },
-        {
-            "label": "What-If Deployment",
-            "type": "shell",
-            "command": "pwsh",
-            "args": [
-                "-File",
-                "scripts/deploy.ps1",
-                "-WhatIf"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": []
-        },
-        {
-            "label": "Create Resource Group",
-            "type": "shell",
-            "command": "az",
-            "args": [
-                "group",
-                "create",
-                "--name",
-                "rg-landingzone-prod-001",
-                "--location",
-                "eastus"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": []
-        }
-    ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Validate Bicep Template",
+			"type": "shell",
+			"command": "az",
+			"args": [
+				"deployment",
+				"group",
+				"validate",
+				"--resource-group",
+				"rg-landingzone-prod-001",
+				"--template-file",
+				"main.bicep",
+				"--parameters",
+				"@parameters/main.parameters.json"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Build Bicep Template",
+			"type": "shell",
+			"command": "az",
+			"args": [
+				"bicep",
+				"build",
+				"--file",
+				"main.bicep"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Deploy Azure Landing Zone (PowerShell)",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-File",
+				"scripts/deploy.ps1"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Deploy Azure Landing Zone (Bash)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"scripts/deploy.sh"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "What-If Deployment",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-File",
+				"scripts/deploy.ps1",
+				"-WhatIf"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Create Resource Group",
+			"type": "shell",
+			"command": "az",
+			"args": [
+				"group",
+				"create",
+				"--name",
+				"rg-landingzone-prod-001",
+				"--location",
+				"eastus"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Build Bicep Template",
+			"type": "shell",
+			"command": "az",
+			"args": [
+				"bicep",
+				"build",
+				"--file",
+				"main.bicep"
+			],
+			"isBackground": false,
+			"group": "build"
+		}
+	]
 }
