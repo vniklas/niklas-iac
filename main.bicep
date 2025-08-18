@@ -179,6 +179,18 @@ module eventHub 'modules/messaging/eventhub.bicep' = {
   }
 }
 
+// Deploy subscription-scoped policies to enforce allowed regions
+module policyModule 'modules/security/policy.bicep' = {
+  name: 'deploy-policy'
+  scope: subscription()
+  params: {
+    allowedLocations: [
+      'swedencentral'
+    ]
+    displayNamePrefix: 'lz-policy'
+  }
+}
+
 // Outputs
 output vnetId string = virtualNetwork.outputs.vnetId
 output vnetName string = virtualNetwork.outputs.vnetName
