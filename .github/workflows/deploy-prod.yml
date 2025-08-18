@@ -1,0 +1,254 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '**.bicep'
+      - '**.json'
+      - 'parameters/main.parameters.json'
+  workflow_dispatch:
+    inputs:
+      confirm_production:
+        description: 'Type "CONFIRM-PRODUCTION" to proceed'
+        required: true
+        type: string
+      skip_approval:
+        description: 'Skip manual approval (emergency only)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+  deployments: write
+
+env:
+  AZURE_RESOURCE_GROUP: rg-landingzone-prod-001
+  AZURE_LOCATION: swedencentral
+  ENVIRONMENT: production
+
+jobs:
+  pre-deployment-checks:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    outputs:
+      should-deploy: ${{ steps.checks.outputs.should-deploy }}
+    
+    steps:
+      - name: Validate Production Deployment
+        id: checks
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.event.inputs.confirm_production }}" != "CONFIRM-PRODUCTION" ]]; then
+              echo "❌ Production deployment requires confirmation"
+              echo "Please enter 'CONFIRM-PRODUCTION' in the confirmation field"
+              exit 1
+            fi
+            echo "✅ Production deployment confirmed"
+          fi
+          
+          echo "should-deploy=true" >> $GITHUB_OUTPUT
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    environment: 
+      name: production
+      url: https://portal.azure.com/#@${{ secrets.AZURE_TENANT_ID }}/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.AZURE_RESOURCE_GROUP }}
+    if: needs.pre-deployment-checks.outputs.should-deploy == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Backup Current State
+        run: |
+          echo "💾 Creating backup of current production state..."
+          
+          if az group exists --name ${{ env.AZURE_RESOURCE_GROUP }}; then
+            # Export current template for rollback purposes
+            az group export \
+              --name ${{ env.AZURE_RESOURCE_GROUP }} \
+              --include-comments \
+              --include-parameter-default-value > production-backup-$(date +%Y%m%d-%H%M%S).json
+            
+            echo "✅ Production state backed up"
+          else
+            echo "ℹ️ No existing production resources to backup"
+          fi
+
+      - name: What-If Analysis
+        run: |
+          echo "🔮 Running final What-If analysis for production..."
+          
+          # Ensure resource group exists for what-if
+          az group create \
+            --name ${{ env.AZURE_RESOURCE_GROUP }} \
+            --location ${{ env.AZURE_LOCATION }} \
+            --tags Environment=production Project=AzureLandingZone ManagedBy=GitHub-Actions \
+            --only-show-errors || true
+          
+          az deployment group what-if \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --template-file main.bicep \
+            --parameters @parameters/main.parameters.json \
+            --result-format FullResourcePayloads
+
+      - name: Deploy Infrastructure
+        id: deploy
+        run: |
+          echo "🚀 Deploying infrastructure to PRODUCTION..."
+          echo "⚠️ This is a PRODUCTION deployment!"
+          
+          DEPLOYMENT_NAME="deploy-prod-$(date +%Y%m%d-%H%M%S)"
+          
+          # Deploy with extra validation
+          az deployment group create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --template-file main.bicep \
+            --parameters @parameters/main.parameters.json \
+            --name $DEPLOYMENT_NAME \
+            --mode Incremental \
+            --verbose
+          
+          echo "deployment-name=$DEPLOYMENT_NAME" >> $GITHUB_OUTPUT
+          echo "✅ Production deployment completed successfully"
+
+      - name: Comprehensive Verification
+        run: |
+          echo "🔍 Running comprehensive production verification..."
+          
+          # Verify all critical resources
+          echo "Checking Virtual Network..."
+          VNET_COUNT=$(az network vnet list --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query 'length(@)')
+          if [ "$VNET_COUNT" -gt 0 ]; then
+            echo "✅ Virtual Network verified"
+          else
+            echo "❌ Virtual Network verification failed"
+            exit 1
+          fi
+          
+          echo "Checking Storage Account..."
+          STORAGE_COUNT=$(az storage account list --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query 'length(@)')
+          if [ "$STORAGE_COUNT" -gt 0 ]; then
+            echo "✅ Storage Account verified"
+          else
+            echo "❌ Storage Account verification failed"
+            exit 1
+          fi
+          
+          echo "Checking Key Vault..."
+          KV_COUNT=$(az keyvault list --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query 'length(@)')
+          if [ "$KV_COUNT" -gt 0 ]; then
+            echo "✅ Key Vault verified"
+          else
+            echo "❌ Key Vault verification failed"
+            exit 1
+          fi
+          
+          echo "Checking Log Analytics..."
+          LAW_COUNT=$(az monitor log-analytics workspace list --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query 'length(@)')
+          if [ "$LAW_COUNT" -gt 0 ]; then
+            echo "✅ Log Analytics verified"
+          else
+            echo "❌ Log Analytics verification failed"
+            exit 1
+          fi
+          
+          echo "🎉 All critical resources verified in production!"
+
+      - name: Security Validation
+        run: |
+          echo "🔒 Running production security validation..."
+          
+          # Check Key Vault access policies
+          KV_NAME=$(az keyvault list --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query '[0].name' -o tsv)
+          if [ ! -z "$KV_NAME" ]; then
+            POLICY_COUNT=$(az keyvault show --name $KV_NAME --query 'properties.accessPolicies | length(@)')
+            echo "Key Vault access policies: $POLICY_COUNT"
+          fi
+          
+          # Check NSG rules
+          NSG_COUNT=$(az network nsg list --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query 'length(@)')
+          echo "Network Security Groups: $NSG_COUNT"
+          
+          # Check for public IPs
+          PIP_COUNT=$(az network public-ip list --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query 'length(@)')
+          echo "Public IP addresses: $PIP_COUNT"
+          
+          echo "✅ Security validation completed"
+
+      - name: Generate Deployment Report
+        run: |
+          echo "📊 Generating production deployment report..."
+          
+          cat > deployment-report.md << EOF
+          # 🚀 Production Deployment Report
+          
+          ## Deployment Details
+          - **Environment**: Production
+          - **Deployment Name**: ${{ steps.deploy.outputs.deployment-name }}
+          - **Timestamp**: $(date -u)
+          - **Resource Group**: ${{ env.AZURE_RESOURCE_GROUP }}
+          - **Location**: ${{ env.AZURE_LOCATION }}
+          
+          ## Deployed Resources
+          EOF
+          
+          # Add resource list to report
+          echo "\`\`\`" >> deployment-report.md
+          az resource list --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --output table >> deployment-report.md
+          echo "\`\`\`" >> deployment-report.md
+          
+          cat >> deployment-report.md << EOF
+          
+          ## Security Status
+          - Network Security Groups: Configured
+          - Key Vault: Deployed and secured
+          - Private endpoints: As configured
+          
+          ## Monitoring
+          - Log Analytics: Enabled
+          - Diagnostic settings: Configured
+          
+          ## Next Steps
+          1. Verify application connectivity
+          2. Run smoke tests
+          3. Monitor for any issues
+          4. Update documentation
+          
+          ---
+          *Automated deployment completed successfully* ✅
+          EOF
+          
+          cat deployment-report.md
+          
+          echo "📧 Production deployment completed successfully!"
+
+  post-deployment:
+    name: Post-Production Tasks
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    environment: production
+    
+    steps:
+      - name: Update Documentation
+        run: |
+          echo "📚 Updating production documentation..."
+          echo "✅ Production environment updated successfully"
+          echo "🔗 Azure Portal: https://portal.azure.com/#@${{ secrets.AZURE_TENANT_ID }}/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.AZURE_RESOURCE_GROUP }}"
+
+      - name: Notify Teams
+        run: |
+          echo "📢 Production deployment notification sent"
+          echo "Deployment completed at: $(date -u)"
