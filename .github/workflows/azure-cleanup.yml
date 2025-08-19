@@ -198,7 +198,7 @@ jobs:
     name: Cleanup Test Environment
     runs-on: ubuntu-latest
     needs: validate-cleanup
-  environment: test
+    environment: test
     if: needs.validate-cleanup.outputs.should-proceed == 'true' && needs.validate-cleanup.outputs.cleanup-test == 'true'
     
     steps:
