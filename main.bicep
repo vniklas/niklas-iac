@@ -210,3 +210,4 @@ output eventHubNamespaceName string = eventHub.outputs.namespaceName
 output eventHubName string = eventHub.outputs.eventHubName
 output eventHubEndpoint string = eventHub.outputs.endpoint
 output eventHubEstimatedCost string = eventHub.outputs.estimatedMonthlyCost
+// Test comment to trigger workflow validation - Tue Aug 19 08:40:29 CEST 2025
