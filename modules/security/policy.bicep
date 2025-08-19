@@ -26,7 +26,7 @@ resource allowedLocationsPolicyDef 'Microsoft.Authorization/policyDefinitions@20
       if: {
         not: {
           field: 'location'
-          in: allowedLocations
+          in: '[parameters(\'allowedLocations\')]'
         }
       }
       then: {
